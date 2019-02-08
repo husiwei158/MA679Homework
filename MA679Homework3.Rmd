@@ -1,0 +1,156 @@
+---
+title: "MA679 Homework 3"
+author: "Siwei Hu"
+date: "February 5, 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(boot)
+library(leaps)
+```
+#Ch5 Excercise 8
+##part(a)
+
+```{r}
+set.seed(1)
+y <- rnorm(100)  # why is this needed?
+x <- rnorm(100)
+y <- x - 2*x^2 + rnorm(100)
+```
+
+$Y = X - 2X^2 + \epsilon$
+
+$n = 100$ observations
+
+$p = 2$ features
+
+##part(b)
+```{r}
+plot(x,y)
+```
+X and Y have a quadratic relationship.
+##part(c)
+```{r}
+set.seed(2)
+df <- data.frame(y,x,x2 = x^2,x3 = x^3,x4 = x^4)
+fit1 <- glm(y~x, data = df)
+cv.err1 <- cv.glm(df,fit1)
+cv.err1$delta
+
+fit2 <- glm(y~x+x2,data = df)
+cv.err2 <- cv.glm(df,fit2)
+cv.err2$delta
+
+fit3 <- glm(y~x+x2+x3,data = df)
+cv.err3 <- cv.glm(df,fit3)
+cv.err3$delta
+
+fit4 <- glm(y~x+x2+x3+x4,data = df)
+cv.err4 <- cv.glm(df,fit4)
+cv.err4$delta
+```
+##part(d)
+```{r}
+set.seed(55)
+df <- data.frame(y,x,x2 = x^2,x3 = x^3,x4 = x^4)
+fit1 <- glm(y~x, data = df)
+cv.err1 <- cv.glm(df,fit1)
+cv.err1$delta
+
+fit2 <- glm(y~x+x2,data = df)
+cv.err2 <- cv.glm(df,fit2)
+cv.err2$delta
+
+fit3 <- glm(y~x+x2+x3,data = df)
+cv.err3 <- cv.glm(df,fit3)
+cv.err3$delta
+
+fit4 <- glm(y~x+x2+x3+x4,data = df)
+cv.err4 <- cv.glm(df,fit4)
+cv.err4$delta
+```
+
+Results are exactly the same because LOOCV predicts every observation using the all of the rest (LOOCV is unbiased)
+##part(e)
+The quadratic model using $X$ and $X^2$ had the lowest error. This makes sense because the true model was generated using a quadratic formula
+
+```{r}
+summary(fit1)
+summary(fit2)
+
+```
+Compare to the fit1's coefficient, fit2 which includes x and $x^2$ shows statistic significant which prove the result of LOOCV.
+
+
+#ch6 Excercise2
+
+For both (a) and (b), iii is correct because both lasso regression and ridge regression have budget constrain on them compare with least square. So they are less flexible but they also have higher bias with lower variance. 
+
+For (c), ii is TRUE - a non-linear model would be more flexible and have higher variance, less bias
+
+#Ch6 Excercise10
+
+```{r}
+set.seed(4)
+eps <- rnorm(1000)
+xmat <- matrix(rnorm(1000*20),ncol = 20)
+beta <- sample(-5:5, 20, replace=TRUE)
+
+y <- xmat%*%beta + eps
+```
+
+```{r}
+set.seed(4)
+trainid <- sample(1:1000, 100, replace=FALSE)
+xmat.train <- xmat[trainid,]
+xmat.test <- xmat[-trainid,]
+y.train <- y[trainid,]
+y.test <- y[-trainid,]
+train <- data.frame(y=y.train, xmat.train)
+test <- data.frame(y=y.test, xmat.test)
+```
+
+```{r}
+predict.regsubsets <- function(object, newdata, id, ...){
+  form <- as.formula(object$call[[2]])
+  mat <- model.matrix(form, newdata)
+  coefi <- coef(object, id=id)
+  xvars <- names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+
+regfit.full <- regsubsets(y~., data= train, nvmax=20)
+err.full <- rep(NA, 20)
+for(i in 1:20) {
+  pred.full <- predict.regsubsets(regfit.full, train, id=i)
+  err.full[i] <- mean((train$y - pred.full)^2)
+}
+plot(1:20, err.full, type="b", main="Training MSE", xlab="Number of Predictors")
+which.min(err.full)  # min for train error should be at max pred count
+
+```
+
+```{r}
+regfit.full <- regsubsets(y~., data= test, nvmax=20)
+err.full <- rep(NA, 20)
+for(i in 1:20) {
+  pred.full <- predict.regsubsets(regfit.full, test, id=i)
+  err.full[i] <- mean((test$y - pred.full)^2)
+}
+plot(1:20, err.full, type="b", main="Testing MSE", xlab="Number of Predictors")
+
+```
+
+
+
+```{r}
+err.full
+which.min(err.full)  
+```
+
+It's always includes all features
