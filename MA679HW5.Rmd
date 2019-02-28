@@ -1,0 +1,211 @@
+---
+title: "MA679Hw5"
+author: "Siwei Hu"
+date: "February 18, 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(gam)
+library(MASS)
+library(boot)
+library(leaps)
+data("Boston")
+College <- read.csv("College.csv")
+library(gam)
+```
+
+##3
+```{r}
+x = seq(-2,2,0.01)
+y = 1 + x + -2 * (x-1)^2 * I(x>1)
+plot(x, y)
+```
+##7.9
+###(a)
+```{r}
+fit1 <- lm(nox~poly(dis,3),data = Boston)
+summary(fit1)
+
+dislims <- range(Boston$dis)
+dis.grid <- seq(dislims[1], dislims[2], 0.1)
+pred1 <- predict(fit1,newdata = list(dis = dis.grid),se = TRUE)
+
+se.band <-cbind(pred1$fit + 2*pred1$se.fit,pred1$fit - 2*pred1$se.fit)
+
+plot(x = Boston$dis,y = Boston$nox, xlim = dislims, cex = 0.5, col = 'grey')
+title("3-Polynomial Regression")
+lines(dis.grid, pred1$fit, lwd=2, col="blue")
+matlines(dis.grid, se.band, lwd=1, col="blue", lty=3)
+```
+
+###(b)
+```{r}
+rss <- rep(0,10)
+for( i in 1:10){
+  lm.fit <- lm(nox~poly(dis,i), data = Boston)
+  rss[i] <- sum(lm.fit$residuals^2)
+}
+plot(rss, type = 'b')
+```
+
+###(C)
+```{r}
+set.seed(1)
+cv.error <- rep(0,10)
+for (i in 1:10) {
+  glm.fit <- glm(nox~poly(dis,i), data=Boston)
+  cv.error[i] <- cv.glm(Boston, glm.fit, K=10)$delta[1]
+}
+cv.error
+
+plot(cv.error, type = 'b')
+```
+
+It's better to choose degree = 4, ACCORDING to cross-validation, the 4-polynomial model has the lowest average RSS than others. So we choose 4th degree. 
+
+###(D)
+```{r}
+
+fit2 <-lm(nox ~ bs(dis,df = 4),data = Boston)
+summary(fit2)
+dim(bs(Boston$dis,df = 4))
+attr(bs(Boston$dis,df = 4),"knots")
+
+
+pred2 <- predict(fit2, newdata = list(dis = dis.grid), se = T)
+plot(x = Boston$dis, y = Boston$nox, cex = 0.2, col = "grey")
+lines(dis.grid,pred2$fit, lwd = 2)
+lines(dis.grid, pred2$fit + 2*pred2$se, lty = "dashed")
+lines(dis.grid,pred2$fit - 2*pred2$se,lty = "dashed")
+```
+
+###(E)
+```{r}
+
+RSS <- rep(0,7) 
+for (i in 4:10){
+  glm.bs <- lm(nox~bs(dis,i),data = Boston)
+  RSS[i-3] <- sum(glm.bs$residuals^2)
+}
+
+plot(4:10,RSS, type = "b")
+```
+
+###(F)
+```{r,warning=FALSE}
+set.seed(1)
+cv.df <- rep(NA,7)
+for(i in 4:10){
+  glm.bs <- lm(nox~ bs(dis,df = i),data = Boston)
+  cv <- cv.glm(Boston,glm.bs, K = 10)
+  cv.df <- cv$delta[2]
+}
+
+#plot(x = 4:10, y = cv.df, type = "b")
+```
+
+##10
+###(a)
+```{r,message=FALSE}
+train <- sample(1:nrow(College), nrow(College)/2)
+train.c <- College[train,]
+test.c <- College[-train,]
+
+fitreg.fwd <- regsubsets(Outstate~., data = train.c, nvmax = 17, method = "forward")
+fwd.summary <- summary(fitreg.fwd)
+
+```
+
+```{r}
+reg.fit = regsubsets(Outstate ~ ., data = College, method = "forward")
+coefi = coef(reg.fit, id = 6)
+names(coefi)
+```
+
+###(b)
+```{r}
+gam.fit = gam(Outstate ~ Private + s(Room.Board, df = 3) + s(PhD, df = 3) + 
+    s(perc.alumni, df = 3) + s(Expend, df = 3) + s(Grad.Rate, df = 3), data = train.c)
+par(mfrow = c(2, 3))
+plot(gam.fit, se = T, col = "blue")
+summary(gam.fit)
+```      
+
+###(c)
+
+```{r}
+
+pred.gam <- predict(gam.fit, newdata = test.c)
+err.gam <- mean((test.c$Outstate - pred.gam)^2)
+
+SS.tot <- mean((test.c$Outstate - mean(test.c$Outstate))^2)
+rss <- 1- err.gam/SS.tot
+rss
+```
+
+###(D)
+
+```{r}
+summary(gam.fit)
+
+```
+
+From summary of gam.fit, we do anova for nonparametric Effects to compare about five different predictor's non-linear relationship with response. From p-value, we know there is strong non-linear relationship between Expend and response. And phd and response have moderately non linear relationship.
+
+##11
+###(a)
+```{r}
+x1 <- rnorm(100)
+x2 <- rnorm(100)
+eps <- rnorm(100,sd = 0.1)
+
+Y = 5 + 4*x1 + 3*x2 + eps
+
+```
+
+###(b)
+```{r}
+beta0 <- rep(NA,1000)
+beta1 <- rep(NA,1000)
+beta2 <- rep(NA,1000)
+
+beta1[1] <- 9
+```
+
+###(c)(d)(e)
+
+```{r}
+for(i in 1:1000){
+  a <- Y - beta1[i]*x1 
+  fit.lm1<- lm(a~x2)
+  beta2[i] <- fit.lm1$coeff[2]
+  b <- Y - beta2[i]*x2
+  fit.lm2 <- lm(b~x1)
+  if(i < 1000){
+  beta1[i+1] <- fit.lm2$coef[2]
+  }
+  beta0[i] <- fit.lm2$coef[1]
+}
+plot(1:1000, beta0, type = "l", xlab = "iteration", ylab = "betas", ylim = c(0, 5), col = "green")
+lines(1:1000, beta1, col = "red")
+lines(1:1000, beta2, col = "blue")
+legend("center", c("beta0", "beta1", "beta2"), lty = 1, col = c("green", "red", "blue"))
+```
+###(f)
+Dotted lines show that the estimated multiple regression coefficients match exactly with the coefficients obtained using backfitting.
+```{r}
+lm.fit = lm(Y ~ x1 + x2)
+plot(1:1000, beta0, type = "l", xlab = "iteration", ylab = "betas", ylim = c(0,5), col = "green")
+lines(1:1000, beta1, col = "red")
+lines(1:1000, beta2, col = "blue")
+abline(h = lm.fit$coef[1], lty = "dashed", lwd = 3, col = rgb(0, 0, 0, alpha = 0.4))
+abline(h = lm.fit$coef[2], lty = "dashed", lwd = 3, col = rgb(0, 0, 0, alpha = 0.4))
+abline(h = lm.fit$coef[3], lty = "dashed", lwd = 3, col = rgb(0, 0, 0, alpha = 0.4))
+legend("center", c("beta0", "beta1", "beta2", "multiple regression"), lty = c(1, 1, 1, 2), col = c("green", "red", "blue", "black"))
+
+```
+
+###(g)
+When the relationship between Y and X's is linear, one iteration is sufficient to attain a good approximation of true regression coefficients.
